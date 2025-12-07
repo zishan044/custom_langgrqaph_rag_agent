@@ -1,14 +1,11 @@
 import getpass
 import os
 
+from langchain_classic.tools.retriever import create_retriever_tool
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-# def _set_env(key):
-#     if key not in os.environ:
-#         os.environ[key] = getpass.getpass(f"{key}:")
-
-# _set_env('OPENAI_API_KEY')
+from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_ollama import OllamaEmbeddings
 
 urls = [
     "https://lilianweng.github.io/posts/2024-11-28-reward-hacking/",
@@ -25,3 +22,19 @@ text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
 doc_splits = text_splitter.split_documents(docs_list)
 
 doc_splits[0].page_content.strip()
+
+vector_store = InMemoryVectorStore.from_documents(
+    documents=doc_splits,
+    embedding=OllamaEmbeddings(
+        model='llama3.1'
+    )
+)
+
+retriever = vector_store.as_retriever()
+retriever_tool = create_retriever_tool(
+    retriever,
+    "retrieve_blog_posts",
+    "Search and return information about Lilian Weng blog posts.",
+)
+
+retriever_tool.invoke({"query": "types of reward hacking"})
