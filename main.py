@@ -10,6 +10,8 @@ from langchain.chat_models import init_chat_model
 from langgraph.graph import MessagesState
 from langchain_core.messages import convert_to_messages
 from langchain_core.messages import HumanMessage
+from langgraph.graph import StateGraph, START, END
+from langgraph.prebuilt import ToolNode, tools_condition
 
 urls = [
     "https://lilianweng.github.io/posts/2024-11-28-reward-hacking/",
@@ -135,3 +137,33 @@ def generate_answer(state: MessagesState):
     prompt = GENERATE_PROMPT.format(question=question, context=context)
     response = response_model.invoke([{"role": "user", "content": prompt}])
     return {"messages": [response]}
+
+
+workflow = StateGraph(MessagesState)
+
+
+workflow.add_node(generate_query_or_respond)
+workflow.add_node("retrieve", ToolNode([retriever_tool]))
+workflow.add_node(rewrite_question)
+workflow.add_node(generate_answer)
+
+workflow.add_edge(START, "generate_query_or_respond")
+
+
+workflow.add_conditional_edges(
+    "generate_query_or_respond",
+    tools_condition,
+    {
+        "tools": "retrieve",
+        END: END,
+    },
+)
+
+workflow.add_conditional_edges(
+    "retrieve",
+    grade_documents,
+)
+workflow.add_edge("generate_answer", END)
+workflow.add_edge("rewrite_question", "generate_query_or_respond")
+
+graph = workflow.compile()
