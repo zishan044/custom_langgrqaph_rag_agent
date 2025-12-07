@@ -9,6 +9,7 @@ from langchain_ollama import OllamaEmbeddings
 from langchain.chat_models import init_chat_model
 from langgraph.graph import MessagesState
 from langchain_core.messages import convert_to_messages
+from langchain_core.messages import HumanMessage
 
 urls = [
     "https://lilianweng.github.io/posts/2024-11-28-reward-hacking/",
@@ -99,29 +100,20 @@ def grade_documents(
     else:
         return "rewrite_question"
 
-from langchain_core.messages import convert_to_messages
+REWRITE_PROMPT = (
+    "Look at the input and try to reason about the underlying semantic intent / meaning.\n"
+    "Here is the initial question:"
+    "\n ------- \n"
+    "{question}"
+    "\n ------- \n"
+    "Formulate an improved question:"
+)
 
-input = {
-    "messages": convert_to_messages(
-        [
-            {
-                "role": "user",
-                "content": "What does Lilian Weng say about types of reward hacking?",
-            },
-            {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": "1",
-                        "name": "retrieve_blog_posts",
-                        "args": {"query": "types of reward hacking"},
-                    }
-                ],
-            },
-            {"role": "tool", "content": "meow", "tool_call_id": "1"},
-        ]
-    )
-}
 
-grade_documents(input)
+def rewrite_question(state: MessagesState):
+    """Rewrite the original user question."""
+    messages = state["messages"]
+    question = messages[0].content
+    prompt = REWRITE_PROMPT.format(question=question)
+    response = response_model.invoke([{"role": "user", "content": prompt}])
+    return {"messages": [HumanMessage(content=response.content)]}
